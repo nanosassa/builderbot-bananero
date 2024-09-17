@@ -3,7 +3,11 @@ import { createBot, createProvider, createFlow, addKeyword, EVENTS } from '@buil
 import { MemoryDB } from '@builderbot/bot'
 import { BaileysProvider } from '@builderbot/provider-baileys'
 import { toAsk, httpInject } from "@builderbot-plugins/openai-assistants"
-import { typing } from "./utils/presence"
+import { typing, recording } from "./utils/presence"
+import textToVoice from "./utils/gTTS";
+import handlerAI from "./utils/whisper";
+import deleteAudioFiles from "./utils/fs";
+
 
 /** Puerto en el que se ejecutará el servidor */
 const PORT = process.env.PORT ?? 3008
@@ -17,15 +21,34 @@ const userLocks = new Map(); // New lock mechanism
  * and sending the response back to the user.
  */
 const processUserMessage = async (ctx, { flowDynamic, state, provider }) => {
-    await typing(ctx, provider);
-    const response = await toAsk(ASSISTANT_ID, ctx.body, state);
+    
+    let responseText = "";
 
-    // Split the response into chunks and send them sequentially
-    const chunks = response.split(/\n\n+/);
-    for (const chunk of chunks) {
-        const cleanedChunk = chunk.trim().replace(/【.*?】[ ] /g, "");
-        await flowDynamic([{ body: cleanedChunk }]);
+    if (ctx.isVoice) { 
+        await  recording(ctx, provider);
+        //TODO: convert voice to text
+        responseText = "{AudioMessage}:" + await handlerAI(ctx)
+    } else {
+        await typing(ctx, provider)
+        responseText = ctx.body;
     }
+
+    const response = await toAsk(ASSISTANT_ID, responseText, state);
+
+    if (ctx.isVoice) {
+        
+        // TODO: Convert to Voice Message
+        const voiceAnswer = await textToVoice(response)
+        await flowDynamic([{ body: 'voiceAnswer', media: voiceAnswer }]);
+
+    } else {
+        // Split the response into chunks and send them sequentially
+        const chunks = response.split(/\n\n+/);
+        for (const chunk of chunks) {
+            const cleanedChunk = chunk.trim().replace(/【.*?】[ ] /g, "");
+            await flowDynamic([{ body: cleanedChunk }]);
+        }
+    }    
 };
 
 /**
@@ -75,6 +98,28 @@ const welcomeFlow = addKeyword<BaileysProvider, MemoryDB>(EVENTS.WELCOME)
         }
     });
 
+
+const voiceFlow = addKeyword<BaileysProvider, MemoryDB>(EVENTS.VOICE_NOTE)
+    .addAction(async (ctx, { flowDynamic, state, provider }) => {
+        
+        ctx.isVoice = true;
+
+        const userId = ctx.from; // Use the user's ID to create a unique queue for each user
+
+        if (!userQueues.has(userId)) {
+            userQueues.set(userId, []);
+        }
+
+        const queue = userQueues.get(userId);
+        queue.push({ ctx, flowDynamic, state, provider });
+
+        // If this is the only message in the queue, process it immediately
+        if (!userLocks.get(userId) && queue.length === 1) {
+            await handleQueue(userId);
+        }
+    });
+
+
 /**
  * Función principal que configura y inicia el bot
  * @async
@@ -85,16 +130,13 @@ const main = async () => {
      * Flujo del bot
      * @type {import('@builderbot/bot').Flow<BaileysProvider, MemoryDB>}
      */
-    const adapterFlow = createFlow([welcomeFlow]);
+    const adapterFlow = createFlow([welcomeFlow, voiceFlow]);
 
     /**
      * Proveedor de servicios de mensajería
      * @type {BaileysProvider}
      */
-    const adapterProvider = createProvider(BaileysProvider, {
-        groupsIgnore: true,
-        readStatus: false,
-    });
+    const adapterProvider = createProvider(BaileysProvider);
 
     /**
      * Base de datos en memoria para el bot
@@ -112,6 +154,9 @@ const main = async () => {
         database: adapterDB,
     });
 
+    
+    deleteAudioFiles();
+    
     httpInject(adapterProvider.server);
     httpServer(+PORT);
 };
