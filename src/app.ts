@@ -6,7 +6,7 @@ import { toAsk, httpInject } from "@builderbot-plugins/openai-assistants"
 import { typing, recording } from "./utils/presence"
 import textToVoice from "./utils/gTTS";
 import handlerAI from "./utils/whisper";
-import deleteAudioFiles from "./utils/fs";
+import {loadGoogleCredentials, deleteAudioFiles} from "./utils/utils";
 
 
 /** Puerto en el que se ejecutará el servidor */
@@ -154,9 +154,10 @@ const main = async () => {
         database: adapterDB,
     });
 
+    loadGoogleCredentials();
     
     deleteAudioFiles();
-    
+
     httpInject(adapterProvider.server);
     httpServer(+PORT);
 };

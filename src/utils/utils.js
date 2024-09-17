@@ -26,4 +26,16 @@ const deleteAudioFiles = () => {
     });
 };
 
-export default deleteAudioFiles;
+const loadGoogleCredentials = () => {
+    // Ruta temporal donde se guardará el archivo keyfile.json
+    const keyfilePath = `${process.cwd()}/tmp/keyfile.json`;
+
+    // Escribir la variable de entorno en un archivo
+    fs.writeFileSync(keyfilePath, process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+
+    // Ahora configura la variable GOOGLE_APPLICATION_CREDENTIALS para apuntar al archivo temporal
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = keyfilePath;
+
+}
+
+export { deleteAudioFiles, loadGoogleCredentials };

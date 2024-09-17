@@ -11,7 +11,7 @@ const textToVoice = async (text) => {
 
         const client = new textToSpeech.TextToSpeechClient({
             projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-            keyFilename: path.join(__dirname, './keyfile.json'),
+            keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
         });
 
         const request = {
