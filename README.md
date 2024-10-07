@@ -1,4 +1,4 @@
-# WhatsApp AI Assistant Bot (BuilderBot.app)
+# WhatsApp AI Assistant Bot (Bananero)
 
 <p align="center">
   <img src="https://builderbot.vercel.app/assets/thumbnail-vector.png" height="80">
